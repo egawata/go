@@ -21,12 +21,16 @@ import (
 	"unicode"
 )
 
+// go test -bench (regex) で、regex に match する benchmark のみ実行される(. なら全部)
+// -benchmem をつけると memory allocation も表示される
 func initBenchmarkFlags() {
 	matchBenchmarks = flag.String("test.bench", "", "run only benchmarks matching `regexp`")
 	benchmarkMemory = flag.Bool("test.benchmem", false, "print memory allocations for benchmarks")
+	// -benchtime は、ベンチマークの実行時間。数字の後ろに x をつけると、実行回数(b.N)になる
 	flag.Var(&benchTime, "test.benchtime", "run each benchmark for duration `d`")
 }
 
+// go test に渡されたオプションを格納する変数たち
 var (
 	matchBenchmarks *string
 	benchmarkMemory *bool
@@ -47,6 +51,7 @@ func (f *benchTimeFlag) String() string {
 }
 
 func (f *benchTimeFlag) Set(s string) error {
+	// strings.HasSuffix は、s が "x" で終わるかどうかをチェック
 	if strings.HasSuffix(s, "x") {
 		n, err := strconv.ParseInt(s[:len(s)-1], 10, 0)
 		if err != nil || n <= 0 {
@@ -507,6 +512,7 @@ func runBenchmarks(importPath string, matchString func(pat, str string) (bool, e
 		}
 	}
 	ctx := &benchContext{
+		// subname が pattern に合致するか否かを判定する struct
 		match:  newMatcher(matchString, *matchBenchmarks, "-test.bench"),
 		extLen: len(benchmarkName("", maxprocs)),
 	}

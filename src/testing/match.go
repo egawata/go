@@ -28,8 +28,10 @@ var matchMutex sync.Mutex
 func newMatcher(matchString func(pat, str string) (bool, error), patterns, name string) *matcher {
 	var filter []string
 	if patterns != "" {
+		// pattern は複数指定できて、/ で区切ればよいようだ
 		filter = splitRegexp(patterns)
 		for i, s := range filter {
+			// rewrite はスペースを _ に変換し、かつ printable な文字だけにする
 			filter[i] = rewrite(s)
 		}
 		// Verify filters before doing any processing.

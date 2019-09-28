@@ -18,12 +18,18 @@ import (
 // AllocsPerRun sets GOMAXPROCS to 1 during its measurement and will restore
 // it before returning.
 func AllocsPerRun(runs int, f func()) (avg float64) {
+	// GOMAXPROCS の戻り値は、これまでの設定値なので、
+	// 以下のようにすれば一時的に GOMAXPROCS を変更できる
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 
 	// Warm up the function
 	f()
 
 	// Measure the starting statistics
+	// ReadMemStats は現在の stat を返す
+	// これを実行後の stat と比較する、という方法
+	// Mallocs は object に対して memory allocation が行われた回数
+	// (容量ではないらしい)
 	var memstats runtime.MemStats
 	runtime.ReadMemStats(&memstats)
 	mallocs := 0 - memstats.Mallocs
