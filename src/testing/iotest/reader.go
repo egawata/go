@@ -42,6 +42,13 @@ func (r *halfReader) Read(p []byte) (int, error) {
 // last piece of data is read. DataErrReader wraps a Reader and changes its
 // behavior so the final error is returned along with the final data, instead
 // of in the first call after the final data.
+// 通常は、Read 対象の最後のデータをエラーなしで返して、次の Read() で
+// 0 と EOF のエラーを返す。
+// しかし http.Get は最後の Read() で、終端までの文字列と EOF を同時に返す。
+// このようなケースをテストしたい場合に使用する。
+// test 対象のメソッドが io.Reader を引数で受け取れるようにして、
+// 通常とテスト時で違うものを渡すようにする(後者は DataErrReader で生成したもの)
+// それにより testable になる
 func DataErrReader(r io.Reader) io.Reader { return &dataErrReader{r, nil, make([]byte, 1024)} }
 
 type dataErrReader struct {
