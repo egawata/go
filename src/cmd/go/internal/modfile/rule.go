@@ -153,7 +153,7 @@ func parseToFile(file string, data []byte, fix VersionFixer, strict bool) (*File
 	return f, nil
 }
 
-var GoVersionRE = lazyregexp.New(`([1-9][0-9]*)\.(0|[1-9][0-9]*)`)
+var GoVersionRE = lazyregexp.New(`^([1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, fix VersionFixer, strict bool) {
 	// If strict is false, this module is a dependency.
@@ -223,7 +223,7 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 			fmt.Fprintf(errs, "%s:%d: %v\n", f.Syntax.Name, line.Start.Line, err)
 			return
 		}
-		if err := module.MatchPathMajor(v, pathMajor); err != nil {
+		if err := module.CheckPathMajor(v, pathMajor); err != nil {
 			fmt.Fprintf(errs, "%s:%d: %v\n", f.Syntax.Name, line.Start.Line, &Error{Verb: verb, ModPath: s, Err: err})
 			return
 		}
@@ -265,7 +265,7 @@ func (f *File) add(errs *bytes.Buffer, line *Line, verb string, args []string, f
 				fmt.Fprintf(errs, "%s:%d: %v\n", f.Syntax.Name, line.Start.Line, err)
 				return
 			}
-			if err := module.MatchPathMajor(v, pathMajor); err != nil {
+			if err := module.CheckPathMajor(v, pathMajor); err != nil {
 				fmt.Fprintf(errs, "%s:%d: %v\n", f.Syntax.Name, line.Start.Line, &Error{Verb: verb, ModPath: s, Err: err})
 				return
 			}
@@ -566,6 +566,9 @@ func (f *File) SetRequire(req []*Require) {
 				var newLines []*Line
 				for _, line := range stmt.Line {
 					if p, err := parseString(&line.Token[0]); err == nil && need[p] != "" {
+						if len(line.Comments.Before) == 1 && len(line.Comments.Before[0].Token) == 0 {
+							line.Comments.Before = line.Comments.Before[:0]
+						}
 						line.Token[1] = need[p]
 						delete(need, p)
 						setIndirect(line, indirect[p])

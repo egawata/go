@@ -287,7 +287,7 @@ For more about modules, see 'go help modules'.
 
 func init() {
 	CmdList.Run = runList // break init cycle
-	work.AddBuildFlags(CmdList)
+	work.AddBuildFlags(CmdList, work.DefaultBuildFlags)
 }
 
 var (
@@ -383,6 +383,9 @@ func runList(cmd *base.Command, args []string) {
 
 		if modload.Init(); !modload.Enabled() {
 			base.Fatalf("go list -m: not using modules")
+		}
+		if cfg.BuildMod == "vendor" {
+			base.Fatalf("go list -m: can't list modules with -mod=vendor\n\tuse -mod=mod or -mod=readonly to ignore the vendor directory")
 		}
 		modload.LoadBuildList()
 

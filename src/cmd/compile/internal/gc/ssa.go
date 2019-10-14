@@ -3671,7 +3671,7 @@ func init() {
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue2(ssa.OpMul64uhilo, types.NewTuple(types.Types[TUINT64], types.Types[TUINT64]), args[0], args[1])
 		},
-		sys.ArchAMD64, sys.ArchARM64, sys.ArchPPC64LE, sys.ArchPPC64)
+		sys.ArchAMD64, sys.ArchARM64, sys.ArchPPC64LE, sys.ArchPPC64, sys.ArchS390X)
 	add("math/big", "divWW",
 		func(s *state, n *Node, args []*ssa.Value) *ssa.Value {
 			return s.newValue3(ssa.OpDiv128u, types.NewTuple(types.Types[TUINT64], types.Types[TUINT64]), args[0], args[1], args[2])
@@ -5238,8 +5238,11 @@ func (s *SSAGenState) DebugFriendlySetPosFrom(v *ssa.Value) {
 			// in the generated code.
 			if p.IsStmt() != src.PosIsStmt {
 				p = p.WithNotStmt()
+				// Calls use the pos attached to v, but copy the statement mark from SSAGenState
 			}
 			s.SetPos(p)
+		} else {
+			s.SetPos(s.pp.pos.WithNotStmt())
 		}
 	}
 }
@@ -5878,10 +5881,15 @@ func (s *SSAGenState) AddrScratch(a *obj.Addr) {
 // Call returns a new CALL instruction for the SSA value v.
 // It uses PrepareCall to prepare the call.
 func (s *SSAGenState) Call(v *ssa.Value) *obj.Prog {
+	pPosIsStmt := s.pp.pos.IsStmt() // The statement-ness fo the call comes from ssaGenState
 	s.PrepareCall(v)
 
 	p := s.Prog(obj.ACALL)
-	p.Pos = v.Pos
+	if pPosIsStmt == src.PosIsStmt {
+		p.Pos = v.Pos.WithIsStmt()
+	} else {
+		p.Pos = v.Pos.WithNotStmt()
+	}
 	if sym, ok := v.Aux.(*obj.LSym); ok {
 		p.To.Type = obj.TYPE_MEM
 		p.To.Name = obj.NAME_EXTERN
@@ -6143,7 +6151,6 @@ func (e *ssafn) splitSlot(parent *ssa.LocalSlot, suffix string, offset int64, t 
 	n.Sym = s
 	n.Type = t
 	n.SetClass(PAUTO)
-	n.SetAddable(true)
 	n.Esc = EscNever
 	n.Name.Curfn = e.curfn
 	e.curfn.Func.Dcl = append(e.curfn.Func.Dcl, n)

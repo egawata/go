@@ -47407,43 +47407,40 @@ func rewriteValuegeneric_OpZeroExt8to64_0(v *Value) bool {
 	return false
 }
 func rewriteBlockgeneric(b *Block) bool {
-	v := b.Control
 	switch b.Kind {
 	case BlockIf:
 		// match: (If (Not cond) yes no)
 		// result: (If cond no yes)
-		for v.Op == OpNot {
-			cond := v.Args[0]
-			b.Kind = BlockIf
-			b.SetControl(cond)
-			b.Aux = nil
+		for b.Controls[0].Op == OpNot {
+			v_0 := b.Controls[0]
+			cond := v_0.Args[0]
+			b.Reset(BlockIf)
+			b.AddControl(cond)
 			b.swapSuccessors()
 			return true
 		}
 		// match: (If (ConstBool [c]) yes no)
 		// cond: c == 1
-		// result: (First nil yes no)
-		for v.Op == OpConstBool {
-			c := v.AuxInt
+		// result: (First yes no)
+		for b.Controls[0].Op == OpConstBool {
+			v_0 := b.Controls[0]
+			c := v_0.AuxInt
 			if !(c == 1) {
 				break
 			}
-			b.Kind = BlockFirst
-			b.SetControl(nil)
-			b.Aux = nil
+			b.Reset(BlockFirst)
 			return true
 		}
 		// match: (If (ConstBool [c]) yes no)
 		// cond: c == 0
-		// result: (First nil no yes)
-		for v.Op == OpConstBool {
-			c := v.AuxInt
+		// result: (First no yes)
+		for b.Controls[0].Op == OpConstBool {
+			v_0 := b.Controls[0]
+			c := v_0.AuxInt
 			if !(c == 0) {
 				break
 			}
-			b.Kind = BlockFirst
-			b.SetControl(nil)
-			b.Aux = nil
+			b.Reset(BlockFirst)
 			b.swapSuccessors()
 			return true
 		}

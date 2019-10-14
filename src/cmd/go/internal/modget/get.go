@@ -7,7 +7,6 @@ package modget
 
 import (
 	"cmd/go/internal/base"
-	"cmd/go/internal/cfg"
 	"cmd/go/internal/get"
 	"cmd/go/internal/imports"
 	"cmd/go/internal/load"
@@ -199,7 +198,7 @@ func (v *upgradeFlag) Set(s string) error {
 func (v *upgradeFlag) String() string { return "" }
 
 func init() {
-	work.AddBuildFlags(CmdGet)
+	work.AddBuildFlags(CmdGet, work.OmitModFlag)
 	CmdGet.Run = runGet // break init loop
 	CmdGet.Flag.BoolVar(&get.Insecure, "insecure", get.Insecure, "")
 	CmdGet.Flag.Var(&getU, "u", "")
@@ -256,11 +255,6 @@ type query struct {
 }
 
 func runGet(cmd *base.Command, args []string) {
-	// -mod=readonly has no effect on "go get".
-	if cfg.BuildMod == "readonly" {
-		cfg.BuildMod = ""
-	}
-
 	switch getU {
 	case "", "upgrade", "patch":
 		// ok
@@ -278,10 +272,6 @@ func runGet(cmd *base.Command, args []string) {
 	}
 	modload.LoadTests = *getT
 
-	if cfg.BuildMod == "vendor" {
-		base.Fatalf("go get: disabled by -mod=%s", cfg.BuildMod)
-	}
-
 	buildList := modload.LoadBuildList()
 	buildList = buildList[:len(buildList):len(buildList)] // copy on append
 	versionByPath := make(map[string]string)
@@ -293,6 +283,10 @@ func runGet(cmd *base.Command, args []string) {
 	// all the requested changes and checked that the result matches
 	// what was requested.
 	modload.DisallowWriteGoMod()
+
+	// Allow looking up modules for import paths outside of a module.
+	// 'go get' is expected to do this, unlike other commands.
+	modload.AllowMissingModuleImports()
 
 	// Parse command-line arguments and report errors. The command-line
 	// arguments are of the form path@version or simply path, with implicit
@@ -364,6 +358,10 @@ func runGet(cmd *base.Command, args []string) {
 			// upgrade golang.org/x/tools.
 
 		case path == "all":
+			// If there is no main module, "all" is not meaningful.
+			if !modload.HasModRoot() {
+				base.Errorf(`go get %s: cannot match "all": working directory is not part of a module`, arg)
+			}
 			// Don't query modules until we load packages. We'll automatically
 			// look up any missing modules.
 
@@ -677,15 +675,6 @@ func runGet(cmd *base.Command, args []string) {
 	// directory.
 	if *getD || len(pkgPatterns) == 0 {
 		return
-	}
-	// TODO(golang.org/issue/32483): handle paths ending with ".go" consistently
-	// with 'go build'. When we load packages above, we interpret arguments as
-	// package patterns, not source files. To preserve that interpretation here,
-	// we add a trailing slash to any patterns ending with ".go".
-	for i := range pkgPatterns {
-		if strings.HasSuffix(pkgPatterns[i], ".go") {
-			pkgPatterns[i] += "/"
-		}
 	}
 	work.BuildInit()
 	pkgs := load.PackagesForBuild(pkgPatterns)
