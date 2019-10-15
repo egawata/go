@@ -82,6 +82,10 @@ var (
 // RST_STREAM, depending on the HTTP protocol. To abort a handler so
 // the client sees an interrupted response but the server doesn't log
 // an error, panic with the value ErrAbortHandler.
+//
+// http.Handler は、Request を受けてそれに応答するためのもの
+// ServeHTTP メソッドを提供する。
+// レスポンスは、http.ResponseWriter の Write メソッドを使用して行う。
 type Handler interface {
 	ServeHTTP(ResponseWriter, *Request)
 }
@@ -95,10 +99,16 @@ type ResponseWriter interface {
 	// Header returns the header map that will be sent by
 	// WriteHeader. The Header map also is the mechanism with which
 	// Handlers can set HTTP trailers.
+	// trailer というのは、response body の末尾につけられるメタ情報。
+	// responose header と同様の形式。
+	// 動的に生成され、Body 書き出し後でないと分からないような情報を付加するために使う
+	// cf. http://www.tcpipguide.com/free/t_HTTPDataLengthIssuesChunkedTransfersandMessageTrai-3.htm
 	//
 	// Changing the header map after a call to WriteHeader (or
 	// Write) has no effect unless the modified headers are
 	// trailers.
+	// WriteHeader() 呼び出し後は、Header の内容を変更することはできない。
+	// ただし対象の header が trailer の場合はその限りではない。
 	//
 	// There are two ways to set Trailers. The preferred way is to
 	// predeclare in the headers which trailers you will later
@@ -135,6 +145,8 @@ type ResponseWriter interface {
 	// writing the response. However, such behavior may not be supported
 	// by all HTTP/2 clients. Handlers should read before writing if
 	// possible to maximize compatibility.
+	// request body をすべて読み込む前に resonse body の write を開始することは、
+	// 互換性の視点から避けるべきである。(可能な場合もあるが)
 	Write([]byte) (int, error)
 
 	// WriteHeader sends an HTTP response header with the provided
@@ -144,6 +156,8 @@ type ResponseWriter interface {
 	// will trigger an implicit WriteHeader(http.StatusOK).
 	// Thus explicit calls to WriteHeader are mainly used to
 	// send error codes.
+	// status = 200 を返す場合は Write() が自動的に WriteHeader(200)を
+	// 呼び出してくれるので、明示的に WriteHeader を呼び出す必要はない。
 	//
 	// The provided code must be a valid HTTP 1xx-5xx status code.
 	// Only one header may be written. Go does not currently
@@ -244,6 +258,7 @@ var (
 )
 
 // A conn represents the server side of an HTTP connection.
+// HTTP connection におけるサーバ側情報を格納するのが conn
 type conn struct {
 	// server is the server on which the connection arrived.
 	// Immutable; never nil.
@@ -333,6 +348,7 @@ const bufferBeforeChunkingSize = 2048
 
 // chunkWriter writes to a response's conn buffer, and is the writer
 // wrapped by the response.bufw buffered writer.
+// response への書き出しを行う Writer
 //
 // chunkWriter also is responsible for finalizing the Header, including
 // conditionally setting the Content-Type and setting a Content-Length
@@ -356,6 +372,14 @@ type chunkWriter struct {
 	wroteHeader bool
 
 	// set by the writeHeader method:
+	// chunking は、response body をいくつかに分割する形式。
+	// Transfer-Encoding: chunk をヘッダに追加した上で、Bodyを
+	// 長さ(16進) + CRLF + body の一部 + CRLF　の繰り返しとする。
+	// 最後に長さ 0 を追加し、その後追加の Header があれば追加する。
+	// Response Body が動的に生成され、事前にサイズが分からない場合に活用できる。
+	// (streaming 的な使い方)
+	// HTTP/1.1 で使用できるようになった。HTTP/2 は独自の data streaming 機構を
+	// 提供しており、chunking はサポートされていない。
 	chunking bool // using chunked transfer encoding for reply body
 }
 
